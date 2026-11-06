@@ -1,0 +1,74 @@
+name: repro
+
+on:
+  push:
+  workflow_dispatch:
+
+env:
+  RUNS: 30
+
+jobs:
+  repro:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install compilers
+        run: |
+          for version in 7.0.2 7.1.0-beta 6.0.3; do
+            npm install --silent --no-save --prefix "$RUNNER_TEMP/ts-$version" "typescript@$version"
+          done
+          echo "cores: $(nproc)"
+      - name: 7.0.2 default
+        run: |
+          for order in package-first local-first; do
+            ORDER=$order ./repro.sh "$RUNNER_TEMP/ts-7.0.2/node_modules/typescript/bin/tsc" "$RUNS"
+          done
+      - name: 7.0.2 --singleThreaded
+        run: |
+          for order in package-first local-first; do
+            ORDER=$order ./repro.sh "$RUNNER_TEMP/ts-7.0.2/node_modules/typescript/bin/tsc" "$RUNS" --singleThreaded
+          done
+      - name: 6.0.3
+        run: |
+          for order in package-first local-first; do
+            ORDER=$order ./repro.sh "$RUNNER_TEMP/ts-6.0.3/node_modules/typescript/bin/tsc" "$RUNS"
+          done
+      - name: 7.1.0-beta default
+        run: |
+          for order in package-first local-first; do
+            ORDER=$order ./repro.sh "$RUNNER_TEMP/ts-7.1.0-beta/node_modules/typescript/bin/tsc" "$RUNS"
+          done
+      - name: 7.1.0-beta --singleThreaded
+        run: |
+          for order in package-first local-first; do
+            ORDER=$order ./repro.sh "$RUNNER_TEMP/ts-7.1.0-beta/node_modules/typescript/bin/tsc" "$RUNS" --singleThreaded
+          done
+
+  variables:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install compiler
+        run: |
+          npm install --silent --no-save --prefix "$RUNNER_TEMP/ts-7.0.2" typescript@7.0.2
+          echo "cores: $(nproc)"
+      - name: One variable at a time, 7.0.2 default
+        run: |
+          tsc="$RUNNER_TEMP/ts-7.0.2/node_modules/typescript/bin/tsc"
+          ./repro.sh "$tsc" "$RUNS"
+          LINK=relative ./repro.sh "$tsc" "$RUNS"
+          JSON_KB=500 ./repro.sh "$tsc" "$RUNS"
+          FILLERS=2000 ./repro.sh "$tsc" "$RUNS"
+          FILLERS=2000 JSON_KB=500 ./repro.sh "$tsc" "$RUNS"
+      - name: Go thread count, 7.0.2 default
+        run: |
+          tsc="$RUNNER_TEMP/ts-7.0.2/node_modules/typescript/bin/tsc"
+          for procs in 1 2 4 8; do
+            GOMAXPROCS=$procs ./repro.sh "$tsc" "$RUNS"
+          done
