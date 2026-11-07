@@ -2,76 +2,103 @@ name: repro
 
 on:
   push:
+    paths-ignore:
+      - README.md
   workflow_dispatch:
 
 env:
   RUNS: 30
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   repro:
+    name: ${{ matrix.typescript }} ${{ matrix.flags || 'default' }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        typescript: [7.0.2, 7.1.0-beta, 6.0.3]
+        flags: ['', --singleThreaded]
+        exclude:
+          - typescript: 6.0.3
+            flags: --singleThreaded
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install compilers
+      - name: Install typescript@${{ matrix.typescript }}
         run: |
-          for version in 7.0.2 7.1.0-beta 6.0.3; do
-            npm install --silent --no-save --prefix "$RUNNER_TEMP/ts-$version" "typescript@$version"
-          done
+          npm install --silent --no-save --prefix "$RUNNER_TEMP/ts" "typescript@${{ matrix.typescript }}"
           echo "cores: $(nproc)"
-      - name: 7.0.2 default
+      - name: Compile ${{ env.RUNS }} times per import order, fail if any compile skipped data.json
         run: |
+          tsc="$RUNNER_TEMP/ts/node_modules/typescript/bin/tsc"
+          {
+            echo "Cores: $(nproc). One mark per compile: \`W\` wrote \`out/prebuilt/shared/data.json\`, \`.\` skipped it."
+            echo
+            echo "| Imported first in \`src/main.ts\` | Written | Compiles |"
+            echo "|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          failed=0
           for order in package-first local-first; do
-            ORDER=$order ./repro.sh "$RUNNER_TEMP/ts-7.0.2/node_modules/typescript/bin/tsc" "$RUNS"
+            ORDER=$order ./repro.sh "$tsc" "$RUNS" ${{ matrix.flags }} | tee "$RUNNER_TEMP/result.txt"
+            result=$(tail -n1 "$RUNNER_TEMP/result.txt")
+            written=$(echo "$result" | sed -E 's|.*written ([0-9]+)/.*|\1|')
+            marks=$(echo "$result" | awk '{print $NF}')
+            if [ "$order" = package-first ]; then
+              first='`consumer` (package)'
+            else
+              first='`./local` (project file)'
+            fi
+            echo "| $first | $written/$RUNS | \`$marks\` |" >> "$GITHUB_STEP_SUMMARY"
+            [ "$written" -eq "$RUNS" ] || failed=1
           done
-      - name: 7.0.2 --singleThreaded
+          exit $failed
+      - name: Show that data.json is in the program on a compile that skips it
+        if: ${{ !cancelled() && matrix.typescript == '7.0.2' && matrix.flags == '--singleThreaded' }}
         run: |
-          for order in package-first local-first; do
-            ORDER=$order ./repro.sh "$RUNNER_TEMP/ts-7.0.2/node_modules/typescript/bin/tsc" "$RUNS" --singleThreaded
-          done
-      - name: 7.0.2 --explainFiles on a run that skips data.json
-        run: |
-          ORDER=local-first ./repro.sh "$RUNNER_TEMP/ts-7.0.2/node_modules/typescript/bin/tsc" 1 --singleThreaded --explainFiles | grep -A2 -e '^prebuilt/shared' -e 'written'
-      - name: 6.0.3
-        run: |
-          for order in package-first local-first; do
-            ORDER=$order ./repro.sh "$RUNNER_TEMP/ts-6.0.3/node_modules/typescript/bin/tsc" "$RUNS"
-          done
-      - name: 7.1.0-beta default
-        run: |
-          for order in package-first local-first; do
-            ORDER=$order ./repro.sh "$RUNNER_TEMP/ts-7.1.0-beta/node_modules/typescript/bin/tsc" "$RUNS"
-          done
-      - name: 7.1.0-beta --singleThreaded
-        run: |
-          for order in package-first local-first; do
-            ORDER=$order ./repro.sh "$RUNNER_TEMP/ts-7.1.0-beta/node_modules/typescript/bin/tsc" "$RUNS" --singleThreaded
-          done
+          ORDER=local-first ./repro.sh "$RUNNER_TEMP/ts/node_modules/typescript/bin/tsc" 1 --singleThreaded --explainFiles \
+            | grep -A2 -e '^prebuilt/shared' -e 'written' | tee "$RUNNER_TEMP/explain.txt"
+          {
+            echo
+            echo "\`--explainFiles\` on one compile with \`./local\` imported first:"
+            echo '```'
+            cat "$RUNNER_TEMP/explain.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   variables:
+    name: 7.0.2 default, one input changed at a time
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install compiler
+      - name: Install typescript@7.0.2
         run: |
-          npm install --silent --no-save --prefix "$RUNNER_TEMP/ts-7.0.2" typescript@7.0.2
+          npm install --silent --no-save --prefix "$RUNNER_TEMP/ts" typescript@7.0.2
           echo "cores: $(nproc)"
-      - name: One variable at a time, 7.0.2 default
+      - name: Compile ${{ env.RUNS }} times per input
         run: |
-          tsc="$RUNNER_TEMP/ts-7.0.2/node_modules/typescript/bin/tsc"
-          ./repro.sh "$tsc" "$RUNS"
-          LINK=relative ./repro.sh "$tsc" "$RUNS"
-          JSON_KB=500 ./repro.sh "$tsc" "$RUNS"
-          FILLERS=2000 ./repro.sh "$tsc" "$RUNS"
-          FILLERS=2000 JSON_KB=500 ./repro.sh "$tsc" "$RUNS"
-      - name: Go thread count, 7.0.2 default
-        run: |
-          tsc="$RUNNER_TEMP/ts-7.0.2/node_modules/typescript/bin/tsc"
-          for procs in 1 2 4 8; do
-            GOMAXPROCS=$procs ./repro.sh "$tsc" "$RUNS"
-          done
+          tsc="$RUNNER_TEMP/ts/node_modules/typescript/bin/tsc"
+          {
+            ./repro.sh "$tsc" "$RUNS"
+            LINK=relative ./repro.sh "$tsc" "$RUNS"
+            JSON_KB=500 ./repro.sh "$tsc" "$RUNS"
+            FILLERS=2000 ./repro.sh "$tsc" "$RUNS"
+            FILLERS=2000 JSON_KB=500 ./repro.sh "$tsc" "$RUNS"
+            for procs in 1 2 4 8; do
+              GOMAXPROCS=$procs ./repro.sh "$tsc" "$RUNS"
+            done
+          } | tee "$RUNNER_TEMP/variables.txt"
+          {
+            echo "Cores: $(nproc)."
+            echo '```'
+            cat "$RUNNER_TEMP/variables.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
