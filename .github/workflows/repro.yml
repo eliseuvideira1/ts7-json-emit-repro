@@ -31,6 +31,9 @@ jobs:
           for order in package-first local-first; do
             ORDER=$order ./repro.sh "$RUNNER_TEMP/ts-7.0.2/node_modules/typescript/bin/tsc" "$RUNS" --singleThreaded
           done
+      - name: 7.0.2 --explainFiles on a run that skips data.json
+        run: |
+          ORDER=local-first ./repro.sh "$RUNNER_TEMP/ts-7.0.2/node_modules/typescript/bin/tsc" 1 --singleThreaded --explainFiles | grep -A1 -e 'data\.json' -e 'shared/index\.d\.ts'
       - name: 6.0.3
         run: |
           for order in package-first local-first; do

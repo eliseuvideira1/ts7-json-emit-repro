@@ -102,7 +102,7 @@ while [ "$run" -le "$runs" ]; do
   status=0
   (cd "$dir" && node "$tsc" -p tsconfig.json "$@" > "$dir/tsc.log" 2>&1) || status=$?
   if [ "$run" -eq 1 ] && { [ "$status" -ne 0 ] || [ -s "$dir/tsc.log" ]; }; then
-    echo "tsc exited $status on run 1:"
+    echo "tsc output on run 1 (exit $status):"
     cat "$dir/tsc.log"
   fi
   if [ -f "$dir/out/prebuilt/shared/data.json" ]; then
