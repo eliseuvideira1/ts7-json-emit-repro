@@ -20,7 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        typescript: [7.0.2, 7.1.0-beta, 6.0.3]
+        # The two nightlies bracket microsoft/TypeScript#64632: 20261005.1 is built 3 commits before it, 20261006.1 one commit after.
+        typescript: [7.0.2, 7.1.0-dev.20261005.1, 7.1.0-dev.20261006.1, 7.1.0-beta, 6.0.3]
         flags: ['', --singleThreaded]
         exclude:
           - typescript: 6.0.3
