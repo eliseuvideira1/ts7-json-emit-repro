@@ -10,7 +10,12 @@
 #   JSON_KB  size of data.json in KB (default 1)
 set -eu
 
-tsc=$1
+if [ ! -f "$1" ]; then
+  echo "repro.sh: no file at $1" >&2
+  exit 1
+fi
+# Absolute, because each compile runs from inside the generated project.
+tsc=$(realpath "$1")
 runs=$2
 shift 2
 
@@ -101,8 +106,14 @@ while [ "$run" -le "$runs" ]; do
   rm -rf "$dir/out"
   status=0
   (cd "$dir" && node "$tsc" -p tsconfig.json "$@" > "$dir/tsc.log" 2>&1) || status=$?
-  if [ "$run" -eq 1 ] && { [ "$status" -ne 0 ] || [ -s "$dir/tsc.log" ]; }; then
-    echo "tsc output on run 1 (exit $status):"
+  # A failed compile would also leave data.json missing, so stop instead of counting it as a skip.
+  if [ "$status" -ne 0 ]; then
+    echo "repro.sh: tsc exited $status on run $run:" >&2
+    cat "$dir/tsc.log" >&2
+    exit 1
+  fi
+  if [ "$run" -eq 1 ] && [ -s "$dir/tsc.log" ]; then
+    echo "tsc output on run 1:"
     cat "$dir/tsc.log"
   fi
   if [ -f "$dir/out/prebuilt/shared/data.json" ]; then
