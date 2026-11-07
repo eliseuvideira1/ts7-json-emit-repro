@@ -16,13 +16,13 @@ prebuilt/shared/data.json          expected at out/prebuilt/shared/data.json
 
 The [workflow](.github/workflows/repro.yml) runs one job per compiler and mode. Each job compiles the project 30 times per import order and fails when any compile skipped `data.json`. Each job's summary on the run page shows the counts and one mark per compile (`W` written, `.` skipped).
 
-From [this run](https://github.com/eliseuvideira1/ts7-json-emit-repro/actions/runs/42379626093) on GitHub-hosted `ubuntu-latest` (2 cores), compiles out of 30 that wrote `data.json`:
+From [this run](https://github.com/eliseuvideira1/ts7-json-emit-repro/actions/runs/42379949272) on GitHub-hosted `ubuntu-latest` (4 cores), compiles out of 30 that wrote `data.json`:
 
 | Compiler | `consumer` imported first | `./local` imported first |
 |---|---|---|
-| 7.0.2 | 21/30 | 8/30 |
+| 7.0.2 | 28/30 | 2/30 |
 | 7.0.2 `--singleThreaded` | 30/30 | 0/30 |
-| 7.1.0-dev.20261005.1 | 23/30 | 4/30 |
+| 7.1.0-dev.20261005.1 | 27/30 | 1/30 |
 | 7.1.0-dev.20261005.1 `--singleThreaded` | 30/30 | 0/30 |
 | 7.1.0-dev.20261006.1 | 30/30 | 30/30 |
 | 7.1.0-dev.20261006.1 `--singleThreaded` | 30/30 | 30/30 |
