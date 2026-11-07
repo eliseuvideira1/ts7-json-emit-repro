@@ -14,17 +14,23 @@ prebuilt/shared/data.json          expected at out/prebuilt/shared/data.json
 
 ## See it in CI
 
-The [workflow](.github/workflows/repro.yml) runs one job per compiler and mode. Each job compiles the project 30 times per import order and fails when any compile skipped `data.json`. The 7.0.2 jobs fail, and the 7.1.0-beta and 6.0.3 jobs pass. Each job's summary on the run page shows the counts and one mark per compile (`W` written, `.` skipped).
+The [workflow](.github/workflows/repro.yml) runs one job per compiler and mode. Each job compiles the project 30 times per import order and fails when any compile skipped `data.json`. Each job's summary on the run page shows the counts and one mark per compile (`W` written, `.` skipped).
 
-From [this run](https://github.com/eliseuvideira1/ts7-json-emit-repro/actions/runs/42378851228) on GitHub-hosted `ubuntu-latest` (2 cores), compiles out of 30 that wrote `data.json`:
+From [this run](https://github.com/eliseuvideira1/ts7-json-emit-repro/actions/runs/42379626093) on GitHub-hosted `ubuntu-latest` (2 cores), compiles out of 30 that wrote `data.json`:
 
 | Compiler | `consumer` imported first | `./local` imported first |
 |---|---|---|
-| 7.0.2 | 22/30 | 11/30 |
+| 7.0.2 | 21/30 | 8/30 |
 | 7.0.2 `--singleThreaded` | 30/30 | 0/30 |
+| 7.1.0-dev.20261005.1 | 23/30 | 4/30 |
+| 7.1.0-dev.20261005.1 `--singleThreaded` | 30/30 | 0/30 |
+| 7.1.0-dev.20261006.1 | 30/30 | 30/30 |
+| 7.1.0-dev.20261006.1 `--singleThreaded` | 30/30 | 30/30 |
 | 7.1.0-beta | 30/30 | 30/30 |
 | 7.1.0-beta `--singleThreaded` | 30/30 | 30/30 |
 | 6.0.3 | 30/30 | 30/30 |
+
+The two nightlies bracket microsoft/TypeScript#64632. 7.1.0-dev.20261005.1 is built 3 commits before it and fails like 7.0.2. 7.1.0-dev.20261006.1 is built 1 commit after it and passes. Of the 4 commits between the two builds, only #64632 changes the file loader.
 
 The `variables` job changes one input at a time. `paths` vs relative imports, a 500 KB JSON file, and 2,000 extra modules all still flake. `GOMAXPROCS=1` is not a workaround. Like `--singleThreaded`, it writes the file on every compile with `consumer` first and skips it on every compile with `./local` first.
 
